@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<phpunit
+        backupGlobals="false"
+        colors="true"
+        verbose="true"
+
+        convertErrorsToExceptions="true"
+        convertNoticesToExceptions="true"
+        convertWarningsToExceptions="true"
+
+        stopOnError="false"
+        stopOnFailure="false"
+        stopOnIncomplete="false"
+        stopOnSkipped="false"
+
+        bootstrap="tests/phpunit_bootstrap.php"
+>
+
+    <testsuites>
+        <testsuite name="Unit">
+            <directory>tests/Unit/Service</directory>
+        </testsuite>
+        <testsuite name="Functional">
+            <directory>tests/Functional</directory>
+        </testsuite>
+    </testsuites>
+
+    <php>
+        <!-- ENV=test setup in tests/phpunit_bootstrap.php -->
+        <ini name="display_errors" value="true" />
+        <ini name="display_startup_errors" value="true" />
+    </php>
+</phpunit>

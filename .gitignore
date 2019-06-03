@@ -1,0 +1,10 @@
+vendor/*
+datadir/*
+docker/*
+cache/*
+/nbproject/
+/.idea/
+/logs/
+/logs/*
+!/logs/README.md
+.env

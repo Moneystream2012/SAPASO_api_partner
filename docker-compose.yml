@@ -1,0 +1,20 @@
+version: "3.2"
+services:
+    webapp:
+        container_name: SAPASO_API_PARTNER
+        build: .
+        ports:
+            - "8085:80"
+        volumes:
+            - "./src:/var/www/html/src"
+            - "./vendor:/var/www/html/vendor"
+            - "../vendor:/var/www/html/vendor/sapaso"
+        env_file:
+            - .env
+        networks:
+            default:
+                ipv4_address: 172.28.1.5
+networks:
+    default:
+        external:
+            name: mysql_default

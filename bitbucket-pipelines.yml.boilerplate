@@ -1,0 +1,93 @@
+image: mesosphere/aws-cli
+  # enable Docker for your repository
+options:
+    docker: true
+
+pipelines:
+    branches:
+        development:
+            - step:
+                caches:
+                    - composer
+                    - docker
+                    - pip
+                script:
+                    - docker login -p $DOCKER_HUB_PASSWORD -u $DOCKER_HUB_USERNAME
+                    # create image name
+                    - export IMAGE_NAME=sapaso/partner_api
+
+                    # replace tag version to development branch in sapaso/* repositories requirements
+                    # composer.json.bak will be created with original version,  ">1.0.0" > "dev-{branch name}"
+                    - sed -i.bak -E 's/("sapaso\/\w*".*)(".+")/\1"dev-development"/g' composer.json
+
+                    # write bitbucket build number to version file inside container
+                    - echo "api 1.$BITBUCKET_BUILD_NUMBER" > ./public/version
+                    # build the Docker image (this will use the Dockerfile in the root of the repo)
+                    - docker build -t $IMAGE_NAME .
+
+                    # aws login
+                    - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+                    # docker
+                    - export BUILD_ID=$BITBUCKET_BRANCH_$BITBUCKET_COMMIT_$BITBUCKET_BUILD_NUMBER
+                    - docker build -t ${AWS_REGISTRY_URL}:$BUILD_ID .
+                    - docker push ${AWS_REGISTRY_URL}:$BUILD_ID
+                    - docker tag ${AWS_REGISTRY_URL}:$BUILD_ID ${AWS_REGISTRY_URL}:development
+                    - docker push ${AWS_REGISTRY_URL}:development
+            - step:
+                name: Deploy to test
+                deployment: test
+                caches:
+                    - docker
+                script:
+                    # Update the ECS service to use the updated Task version
+                    - aws ecs update-service --cluster default --service partner-test --force-new-deployment --task-definition api-partner
+        master:
+            - step:
+                script:
+                    - docker login -p $DOCKER_HUB_PASSWORD -u $DOCKER_HUB_USERNAME
+                    # create image name
+                    - export IMAGE_NAME=sapaso/partner_api
+
+                    # write bitbucket build number to version file inside container
+                    - echo "api 1.$BITBUCKET_BUILD_NUMBER" > ./public/version
+                    # build the Docker image (this will use the Dockerfile in the root of the repo)
+                    - docker build -t $IMAGE_NAME .
+
+                    # aws login
+                    - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+                    # docker
+                    - docker build -t ${AWS_REGISTRY_URL}:staging .
+                    - docker push ${AWS_REGISTRY_URL}:staging
+            - step:
+                name: Build and deploy to staging
+                deployment: staging
+                caches:
+                    - docker
+                script: # Modify the commands below to build your repository.
+                    - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+                    # Update the ECS service to use the updated Task version
+                    - aws ecs update-service --cluster default --service partner-sandbox --force-new-deployment --task-definition api-partner-sandbox
+            - step:
+                name: Build and deploy to partner production
+                deployment: production
+                trigger: manual
+                caches:
+                    - docker
+                script:
+                    # aws login for repos
+                    - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+
+                    # docker
+                    - docker pull ${AWS_REGISTRY_URL}:staging
+                    - docker tag ${AWS_REGISTRY_URL}:staging ${AWS_REGISTRY_URL}:master
+                    - docker push ${AWS_REGISTRY_URL}:master
+
+                    # set AWS production keys
+                    - export AWS_ACCESS_KEY_ID="${SAPASO_AWS_ACCESS_KEY_ID}"
+                    - export AWS_SECRET_ACCESS_KEY="${SAPASO_AWS_SECRET_ACCESS_KEY}"
+
+                    # aws login for production
+                    - eval $(aws ecr get-login --region ${AWS_DEFAULT_REGION} --no-include-email)
+
+                    # Update the ECS service to use the updated Task version
+                    - aws ecs update-service --cluster API-Cluster --service partner-service --force-new-deployment --task-definition api-partner
